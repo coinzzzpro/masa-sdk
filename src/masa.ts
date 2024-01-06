@@ -1,61 +1,37 @@
+import type { MasaArgs, MasaConfig, MasaInterface } from "./interface";
 import { SupportedNetworks } from "./collections";
 import { MasaContracts } from "./contracts";
-import type { MasaArgs, MasaConfig, MasaInterface } from "./interface";
+import { MasaArweave, MasaClient, getNetworkNameByChainId } from "./utils";
 import {
-  MasaAccount,
-  MasaASBT,
-  MasaCreditScore,
-  MasaDynamicSBTBase,
-  MasaDynamicSSSBT,
-  MasaGreen,
-  MasaIdentity,
-  MasaSBTBase,
-  MasaSession,
-  MasaSoulName,
-  MasaSSSBT,
-  version,
+  MasaAccount, MasaASBT, MasaCreditScore, MasaDynamicSBTBase,
+  MasaDynamicSSSBT, MasaGreen, MasaIdentity, MasaSBTBase,
+  MasaSession, MasaSoulName, MasaSSSBT, version
 } from "./modules";
-import { getNetworkNameByChainId, MasaArweave, MasaClient } from "./utils";
 
 export class Masa implements MasaInterface {
-  // config
   readonly config: MasaConfig;
-  // clients
   readonly arweave: MasaArweave;
   readonly client: MasaClient;
-  // contracts
   readonly contracts: MasaContracts;
-  // modules
   readonly account: MasaAccount;
   readonly session: MasaSession;
   readonly identity: MasaIdentity;
   readonly soulName: MasaSoulName;
   readonly creditScore: MasaCreditScore;
   readonly green: MasaGreen;
-  // SBTs
   readonly sbt: MasaSBTBase;
   readonly asbt: MasaASBT;
   readonly sssbt: MasaSSSBT;
-  // Dynamic SBTs
-  readonly ["dynamic-sbt"]: MasaDynamicSBTBase;
-  readonly ["dynamic-sssbt"]: MasaDynamicSSSBT;
+  readonly dynamicSBT: MasaDynamicSBTBase;
+  readonly dynamicSSSBT: MasaDynamicSSSBT;
 
-  public constructor({
-    cookie,
-    signer,
-    apiUrl = "https://middleware.masa.finance",
-    environment = "production",
-    networkName = "ethereum",
-    arweave = {
-      host: "arweave.net",
-      port: 443,
-      protocol: "https",
-    },
-    contractOverrides,
-    verbose = false,
-    forceTransactions = false,
-  }: MasaArgs) {
-    // build config
+  constructor(masaArgs: MasaArgs) {
+    this.initConfig(masaArgs);
+    this.initClients(masaArgs);
+    this.initModules();
+  }
+
+  private initConfig({ apiUrl, environment, networkName, signer, verbose, forceTransactions }: MasaArgs) {
     this.config = {
       apiUrl,
       environment,
@@ -65,56 +41,36 @@ export class Masa implements MasaInterface {
       verbose,
       forceTransactions,
     };
+  }
 
-    // masa client
-    this.client = new MasaClient({
-      masa: this,
-      apiUrl,
-      cookie,
-    });
-
-    // arweave client
+  private initClients({ cookie, apiUrl, arweave, contractOverrides }: MasaArgs) {
+    this.client = new MasaClient({ masa: this, apiUrl, cookie });
     this.arweave = new MasaArweave(arweave, this.config);
+    this.contracts = new MasaContracts({ masa: this, contractOverrides });
+  }
 
-    // masa contracts wrapper
-    this.contracts = new MasaContracts({
-      masa: this,
-      contractOverrides,
-    });
-    // account + session
+  private initModules() {
     this.account = new MasaAccount(this);
     this.session = new MasaSession(this);
-    // identity
     this.identity = new MasaIdentity(this);
-    // soul name
     this.soulName = new MasaSoulName(this);
-    // credit score
     this.creditScore = new MasaCreditScore(this);
-    // green
     this.green = new MasaGreen(this);
-    // generic sbt handler
     this.sbt = new MasaSBTBase(this);
-    // ASBT handler
     this.asbt = new MasaASBT(this);
-    // SSSBT Handler
     this.sssbt = new MasaSSSBT(this);
-    // dynamic sbt
-    this["dynamic-sbt"] = new MasaDynamicSBTBase(this);
-    this["dynamic-sssbt"] = new MasaDynamicSSSBT(this);
+    this.dynamicSBT = new MasaDynamicSBTBase(this);
+    this.dynamicSSSBT = new MasaDynamicSSSBT(this);
   }
 
   utils = {
     version,
   };
 
-  public static create = async (masaArgs: MasaArgs) => {
+  static async create(masaArgs: MasaArgs): Promise<Masa> {
     const network = await masaArgs.signer.provider?.getNetwork();
+    const networkName = network ? getNetworkNameByChainId(network.chainId) : "ethereum";
 
-    return new Masa({
-      ...masaArgs,
-      networkName: network
-        ? getNetworkNameByChainId(network.chainId)
-        : "ethereum",
-    });
-  };
+    return new Masa({ ...masaArgs, networkName });
+  }
 }
